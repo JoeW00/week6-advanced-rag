@@ -11,3 +11,6 @@ wheels/
 
 # Project docs (private)
 docs/
+
+# Auto-generated scaffold
+main.py
