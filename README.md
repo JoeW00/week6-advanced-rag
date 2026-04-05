@@ -1,11 +1,15 @@
-# Advanced RAG 系統實作
+# Advanced RAG 系統與合成資料生成
 
 NTHU 114 學年第 2 學期 — LLM Security System  
-Week 6 作業 — TASK 2（Exceeding）：RAG 流程程式實作
+Week 6 作業 — TASK 2 & TASK 3
 
 > 本作品為與 AI 共同協作的成果。
 
+---
+
 ## 架構概覽
+
+### Task 2：Advanced RAG 系統（`main.ipynb`）
 
 採用兩階段檢索的 Advanced RAG 架構：
 
@@ -14,6 +18,16 @@ Week 6 作業 — TASK 2（Exceeding）：RAG 流程程式實作
                                                               ↓
 使用者問題 → FAISS 粗檢索（top-30）→ CrossEncoder 精排（top-5）→ Prompt 組裝 → LLM 生成答案
 ```
+
+### Task 3：Synthetic Data 生成（`task3_synthetic_data.ipynb`）
+
+使用 LLM 自動生成合成釣魚信件資料集：
+
+```
+生成 Prompt → LLM（Ollama gpt-oss:20b）→ JSON 解析 → Schema 驗證 → 儲存 JSON/CSV
+```
+
+---
 
 ## 技術堆疊
 
@@ -26,12 +40,16 @@ Week 6 作業 — TASK 2（Exceeding）：RAG 流程程式實作
 | LLM | Ollama `gpt-oss:20b` / LiteLLM 雲端 | 統一介面，一鍵切換 |
 | 視覺化 | PaCMAP + Plotly | 嵌入降維互動散點圖 |
 
+---
+
 ## 知識庫
 
 支援兩組知識庫（透過 `USE_LOCAL_DATA` 旗標切換）：
 
 - **資安資料集**（`data/`）：Prompt Injection 知識庫（8 種攻擊、30 筆）+ 釣魚信件知識庫（15 筆）
 - **HuggingFace 官方文件**：`m-ric/huggingface_doc`（備用）
+
+---
 
 ## 快速開始
 
@@ -50,13 +68,20 @@ uv sync
 # 2. 下載本地 LLM 模型
 ollama pull gpt-oss:20b
 
-# 3. 啟動 Jupyter Notebook
+# 3. 執行 Task 2：Advanced RAG
 jupyter notebook main.ipynb
+
+# 4. 執行 Task 3：合成資料生成
+jupyter notebook task3_synthetic_data.ipynb
 ```
 
-依序執行 Cell 0 ~ Cell 9 即可完成完整 RAG 流程。
+---
 
 ## Notebook 結構
+
+### `main.ipynb` — Advanced RAG 系統（Task 2）
+
+依序執行 Cell 0 ~ Cell 9 即可完成完整 RAG 流程。
 
 | Cell | 功能 | 說明 |
 |------|------|------|
@@ -72,17 +97,36 @@ jupyter notebook main.ipynb
 | Cell 8 | RAG Pipeline | `answer_with_rag()` 完整流水線 |
 | Cell 9 | 執行查詢 | 資料集專屬問題驗證 RAG 效果 |
 
+### `task3_synthetic_data.ipynb` — 合成釣魚資料生成（Task 3）
+
+依序執行 Cell 0 ~ Cell 5 即可生成 15 筆合成釣魚信件並儲存。
+
+| Cell | 功能 | 說明 |
+|------|------|------|
+| Cell 0 | 環境設定 | LiteLLM + Ollama 設定（`temperature=0.8`、`max_tokens=8192`） |
+| Cell 1 | 定義 Prompt | 指定 schema 與生成要求（多語言、多攻擊類型） |
+| Cell 2 | 呼叫 LLM | `litellm.completion()` 生成 15 筆合成資料 |
+| Cell 3 | 解析與驗證 | JSON 解析 + 10 欄位型別檢查 + email RFC 5321 格式驗證 |
+| Cell 4 | 儲存檔案 | 輸出 `synthetic_phishing_dataset.json` + `.csv`，附統計摘要 |
+| Cell 5 | 品質分析 | 攻擊類型 / 語言多樣性檢查 + 逐筆預覽 |
+
+---
+
 ## 專案結構
 
 ```
 .
-├── main.ipynb                  # 主要實作 Notebook
-├── pyproject.toml              # 專案依賴定義
+├── main.ipynb                          # Task 2：Advanced RAG 系統
+├── task3_synthetic_data.ipynb          # Task 3：合成釣魚資料生成
+├── pyproject.toml                      # 專案依賴定義
 ├── data/
 │   ├── knowledge_base.md               # Prompt Injection 知識庫
 │   ├── phishing_knowledge_base.md      # 釣魚信件知識庫
 │   ├── prompt_injection_dataset.csv    # PI 結構化資料（30 筆）
-│   └── phishing_email_dataset.csv      # 釣魚信件資料（15 筆）
+│   ├── phishing_email_dataset.csv      # 釣魚信件資料（15 筆）
+│   ├── phishing_email_dataset.json     # 釣魚信件資料（JSON 格式）
+│   ├── synthetic_phishing_dataset.json # Task 3 生成的合成資料（15 筆）
+│   └── synthetic_phishing_dataset.csv  # Task 3 生成的合成資料（CSV）
 └── docs/
     ├── RAG_SDD.md                      # SDD 設計文件
     └── Advanced_RAG_Summary.md         # RAG 理論參考
