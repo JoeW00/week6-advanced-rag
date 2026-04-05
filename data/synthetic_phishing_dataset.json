@@ -1,0 +1,204 @@
+[
+  {
+    "email_id": "SYNTH-001",
+    "sender": "support@gmaill.com",
+    "subject": "Urgent: Password Reset Required",
+    "body": "Dear user, our system detected unusual activity on your account. Please click the link below to reset your password immediately to avoid suspension.",
+    "urls": [
+      "https://secure.gmaill.com/reset?uid=12345"
+    ],
+    "has_attachment": false,
+    "urgency_level": "high",
+    "label": "phishing",
+    "attack_type": "credential_harvesting",
+    "indicators": "The email uses urgent language and a suspicious link from a domain that mimics a legitimate service. It requests password reset."
+  },
+  {
+    "email_id": "SYNTH-002",
+    "sender": "ceo@twiter.com",
+    "subject": "Immediate Approval Needed for Invoice #9876",
+    "body": "Hi team, I need the attached invoice approved by EOD. Please review and sign off. Thanks, CEO",
+    "urls": [],
+    "has_attachment": true,
+    "urgency_level": "medium",
+    "label": "phishing",
+    "attack_type": "BEC",
+    "indicators": "Sender claims to be CEO, requests approval of invoice, uses urgency, attachment likely malicious."
+  },
+  {
+    "email_id": "SYNTH-003",
+    "sender": "updates@amaz0n.com",
+    "subject": "Important System Update Available",
+    "body": "Please download the latest driver from the link below to keep your device secure. Failure to update may result in security risks.",
+    "urls": [
+      "http://update.amaz0n.com/driver.exe"
+    ],
+    "has_attachment": false,
+    "urgency_level": "low",
+    "label": "phishing",
+    "attack_type": "malware_delivery",
+    "indicators": "Suspicious download link from fake domain, claims system update, low urgency but malicious."
+  },
+  {
+    "email_id": "SYNTH-004",
+    "sender": "billing@paypa1.com",
+    "subject": "您的發票已準備好 - 付款請盡快",
+    "body": "尊敬的客戶，您的發票已生成，請點擊下方連結完成付款，以免延遲。感謝您的合作！",
+    "urls": [
+      "https://paypa1.com/pay?invoice=54321"
+    ],
+    "has_attachment": true,
+    "urgency_level": "high",
+    "label": "phishing",
+    "attack_type": "invoice_fraud",
+    "indicators": "Chinese language, urgent payment request, fake domain resembling PayPal, attachment likely malicious."
+  },
+  {
+    "email_id": "SYNTH-005",
+    "sender": "login@googlemail.com",
+    "subject": "アカウント確認が必要です",
+    "body": "あなたのアカウントに不正ログインが検出されました。以下のリンクから確認してください。",
+    "urls": [
+      "https://googlemail.com/verify?user=abc"
+    ],
+    "has_attachment": false,
+    "urgency_level": "medium",
+    "label": "phishing",
+    "attack_type": "credential_harvesting",
+    "indicators": "Japanese language, suspicious verification link, fake domain, urgency."
+  },
+  {
+    "email_id": "SYNTH-006",
+    "sender": "project@service.microsofts.com",
+    "subject": "Project Plan Attachment",
+    "body": "Hi all, please find the updated project plan attached. Let me know if any changes are needed. Regards.",
+    "urls": [],
+    "has_attachment": true,
+    "urgency_level": "low",
+    "label": "phishing",
+    "attack_type": "BEC",
+    "indicators": "Fake domain microsofts.com, attachment may contain malware, no urgency but BEC."
+  },
+  {
+    "email_id": "SYNTH-007",
+    "sender": "driver@security.applemail.com",
+    "subject": "Critical Driver Update Required",
+    "body": "Your system requires an immediate driver update. Download from the link below to maintain security.",
+    "urls": [
+      "http://security.applemail.com/driver.dll"
+    ],
+    "has_attachment": false,
+    "urgency_level": "high",
+    "label": "phishing",
+    "attack_type": "malware_delivery",
+    "indicators": "Urgent update claim, fake domain applemail, malicious download link."
+  },
+  {
+    "email_id": "SYNTH-008",
+    "sender": "invoices@twiter.com",
+    "subject": "付款提醒：發票 #2023-001 已到期",
+    "body": "請盡快完成付款以避免服務中斷。點擊下方鏈接查看發票細節。",
+    "urls": [
+      "https://twiter.com/invoice/2023001"
+    ],
+    "has_attachment": true,
+    "urgency_level": "medium",
+    "label": "phishing",
+    "attack_type": "invoice_fraud",
+    "indicators": "Chinese text, urgent payment, fake domain twiter, link leads to phishing site."
+  },
+  {
+    "email_id": "SYNTH-009",
+    "sender": "verify@outl0ok.com",
+    "subject": "Account Verification Required",
+    "body": "To keep your account secure, please verify your details by clicking the link below. This action is mandatory.",
+    "urls": [
+      "https://outl0ok.com/verify?token=xyz"
+    ],
+    "has_attachment": false,
+    "urgency_level": "low",
+    "label": "phishing",
+    "attack_type": "credential_harvesting",
+    "indicators": "Generic verification email, suspicious domain outl0ok, link directs to phishing."
+  },
+  {
+    "email_id": "SYNTH-010",
+    "sender": "meeting@faceb0ok.com",
+    "subject": "重要：本週會議議程",
+    "body": "本週的會議已更新，請在附件中查看最新議程並準備相關報告。",
+    "urls": [],
+    "has_attachment": true,
+    "urgency_level": "high",
+    "label": "phishing",
+    "attack_type": "BEC",
+    "indicators": "Fake domain faceb0ok, attachment potentially malicious, urgent meeting agenda."
+  },
+  {
+    "email_id": "SYNTH-011",
+    "sender": "patches@security.update.com",
+    "subject": "Security Patch Available",
+    "body": "Download the latest security patch to protect your system from vulnerabilities. Click the link below.",
+    "urls": [
+      "http://security.update.com/patch.exe"
+    ],
+    "has_attachment": false,
+    "urgency_level": "medium",
+    "label": "phishing",
+    "attack_type": "malware_delivery",
+    "indicators": "Fake domain update.com, malicious download link, claims security patch."
+  },
+  {
+    "email_id": "SYNTH-012",
+    "sender": "receipts@paypa1.com",
+    "subject": "收據已發送 - 請查收",
+    "body": "您的收據已發送至您的郵箱。若需查看，請點擊以下連結。",
+    "urls": [
+      "https://paypa1.com/receipt?order=98765"
+    ],
+    "has_attachment": true,
+    "urgency_level": "low",
+    "label": "phishing",
+    "attack_type": "invoice_fraud",
+    "indicators": "Chinese, fake PayPal-like domain, link leads to phishing site, attachment may be malicious."
+  },
+  {
+    "email_id": "SYNTH-013",
+    "sender": "security@gmaill.com",
+    "subject": "二次認證失敗 - 立即更新",
+    "body": "您的帳戶因二次認證失敗被鎖定。請使用以下連結重置密碼以恢復訪問。",
+    "urls": [
+      "https://gmaill.com/reset2fa?code=123"
+    ],
+    "has_attachment": false,
+    "urgency_level": "high",
+    "label": "phishing",
+    "attack_type": "credential_harvesting",
+    "indicators": "Urgent password reset, fake domain gmaill, phishing link."
+  },
+  {
+    "email_id": "SYNTH-014",
+    "sender": "budget@faceb0ok.com",
+    "subject": "請審核預算報告",
+    "body": "請審核附件中的預算報告，並於今天結束前提供回覆。",
+    "urls": [],
+    "has_attachment": true,
+    "urgency_level": "medium",
+    "label": "phishing",
+    "attack_type": "BEC",
+    "indicators": "Fake domain, urgent budget review, attachment may be malicious."
+  },
+  {
+    "email_id": "SYNTH-015",
+    "sender": "report@security.applemail.com",
+    "subject": "Monthly Report Delivery",
+    "body": "The monthly report is ready. Click the link below to download the report. Please keep it confidential.",
+    "urls": [
+      "http://security.applemail.com/report.pdf"
+    ],
+    "has_attachment": false,
+    "urgency_level": "low",
+    "label": "phishing",
+    "attack_type": "malware_delivery",
+    "indicators": "Suspicious download link from fake domain, claims confidential report, potential malware."
+  }
+]
