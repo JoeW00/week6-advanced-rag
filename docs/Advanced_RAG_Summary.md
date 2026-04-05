@@ -4,6 +4,21 @@
 >
 > 作者：[Aymeric Roucher](https://huggingface.co/m-ric)
 
+> [!NOTE]
+> **本專案實作差異說明**
+>
+> 本文件忠實摘要 HuggingFace Cookbook 原文的理論與架構。原文使用的技術棧為：
+>
+> | 組件 | 原文使用 | 本專案改用 | 原因 |
+> |------|---------|-----------|------|
+> | **LLM** | Zephyr-7B + BitsAndBytes 4-bit 量化 | Ollama（gpt-oss:20b）透過 LiteLLM 呼叫 | Ollama 封裝模型載入、量化、Tokenizer，一個 API 呼叫取代手動的 5 個步驟 |
+> | **Prompt 格式化** | `tokenizer.apply_chat_template()` 手動格式化 | LiteLLM `messages` 參數自動處理 | LiteLLM / Ollama 自動處理聊天模板轉換 |
+> | **重排序** | ColBERTv2 via RAGatouille | CrossEncoder（`ms-marco-MiniLM-L-6-v2`） | RAGatouille 不相容 langchain 1.x |
+> | **langchain** | 0.x 版（舊 import 路徑） | 1.x 版（模組拆分至 `langchain-core`、`langchain-text-splitters`、`langchain-community`） | 版本升級 |
+>
+> 文中以 **「📌 本專案做法」** 標記所有與本專案實作不同之處。原文的理論解說（如 ColBERTv2 原理、Tokenizer 機制、量化原理）仍完整保留，作為學習參考。
+> 詳細實作設計請參閱 [SDD 文件](./RAG_SDD.md)。
+
 ---
 
 ## 一、什麼是 RAG？為什麼需要「高級」RAG？
@@ -73,7 +88,7 @@ flowchart TD
     end
 
     subgraph "Step 5：重排序"
-        RR["🔀 ColBERTv2 精排\n────────────\n對 30 個候選片段\n做 token 級交互計算\n只保留最相關的 top-5"]
+        RR["🔀 ColBERTv2 精排\n────────────\n對 30 個候選片段\n做 token 級交互計算\n只保留最相關的 top-5\n────────────\n📌 本專案改用 CrossEncoder"]
     end
 
     subgraph "Step 6：組裝 Prompt"
@@ -81,7 +96,7 @@ flowchart TD
     end
 
     subgraph "Step 7：生成答案"
-        LLM["🤖 LLM 閱讀器\nZephyr-7B (4-bit 量化)\n────────────\n閱讀 prompt 中的\n上下文片段\n生成自然語言答案"]
+        LLM["🤖 LLM 閱讀器\nZephyr-7B (4-bit 量化)\n────────────\n閱讀 prompt 中的\n上下文片段\n生成自然語言答案\n────────────\n📌 本專案改用 Ollama + LiteLLM"]
     end
 
     ANS["✅ 最終回答\n（附來源文檔編號）"]
@@ -478,6 +493,16 @@ genai.configure(api_key="YOUR_API_KEY")              # 設定 API 金鑰
 gemini = genai.GenerativeModel("gemini-2.5-pro")     # 指定要用的模型
 # 直接丟文字進去，拿回文字答案（Tokenizer 在 API 內部自動處理，你看不到）
 answer = gemini.generate_content(final_prompt).text
+
+# ===== 📌 本專案做法：LiteLLM 統一介面（本地 Ollama 和雲端 API 共用同一套程式碼）=====
+import litellm
+response = litellm.completion(
+    model="ollama/gpt-oss:20b",     # 本地模式；雲端模式改為 "gemini/gemini-2.5-flash"
+    messages=[{"role": "user", "content": final_prompt}],
+    api_base="http://localhost:11434",  # 本地模式需要；雲端模式不需要
+)
+answer = response.choices[0].message.content
+# 優勢：切換本地↔雲端只需改 model 參數，其餘程式碼完全不變
 ```
 
 **但即使用了雲端 API，你仍然需要理解 token 的概念**，因為：
@@ -506,9 +531,9 @@ flowchart TD
 
     HF -->|"AutoTokenizer.from_pretrained()\nHuggingFaceEmbeddings()"| EM["🧮 嵌入模型 + Tokenizer\nthenlper/gte-small\n─────────────────\n用途 1：把文字轉成 384 維向量\n用途 2：切分時準確計算 token 數"]
 
-    HF -->|"AutoModelForCausalLM.from_pretrained()\nAutoTokenizer.from_pretrained()"| LLM["🤖 LLM 閱讀器 + Tokenizer\nHuggingFaceH4/zephyr-7b-beta\n─────────────────\n用途：閱讀上下文並生成答案"]
+    HF -->|"AutoModelForCausalLM.from_pretrained()\nAutoTokenizer.from_pretrained()"| LLM["🤖 LLM 閱讀器 + Tokenizer\nHuggingFaceH4/zephyr-7b-beta\n─────────────────\n用途：閱讀上下文並生成答案\n─────────────────\n📌 本專案改用 Ollama + LiteLLM"]
 
-    HF -->|"RAGPretrainedModel.from_pretrained()"| RR["🔀 重排序模型\ncolbert-ir/colbertv2.0\n─────────────────\n用途：對檢索結果精排序"]
+    HF -->|"CrossEncoder() / RAGPretrainedModel.from_pretrained()"| RR["🔀 重排序模型\ncolbert-ir/colbertv2.0\n─────────────────\n用途：對檢索結果精排序\n─────────────────\n📌 本專案改用 CrossEncoder\nms-marco-MiniLM-L-6-v2"]
 
     style HF fill:#FFD21E,color:#000
     style DS fill:#4A90D9,color:#fff
@@ -561,6 +586,33 @@ tokenizer = AutoTokenizer.from_pretrained("HuggingFaceH4/zephyr-7b-beta")
 | **落在哪個階段？** | **階段 B（線上回答問題）** — 只有在使用者提問、檢索完畢後才登場，負責最後的答案生成 |
 | **拿到什麼？** | 一個 7B 參數的語言生成模型（Zephyr-7B），加上它配套的 tokenizer |
 | **為什麼需要？** | 檢索器只負責「找到相關片段」，你還需要一個 LLM 來「讀懂這些片段並組織成自然語言回答」 |
+
+> [!NOTE]
+> **📌 本專案做法：LiteLLM + Ollama 取代手動載入**
+>
+> 原文需要手動完成 5 個步驟：① 設定 BitsAndBytes 量化 → ② 下載模型權重 → ③ 下載 Tokenizer → ④ 建立 pipeline → ⑤ 用 Tokenizer 格式化聊天模板。
+>
+> 本專案使用 **LiteLLM** 統一呼叫 **Ollama**（本地）或雲端 API，一個函式呼叫就完成以上所有步驟：
+>
+> ```python
+> import litellm
+> response = litellm.completion(
+>     model="ollama/gpt-oss:20b",  # Ollama 內部自動處理模型載入、量化、Tokenizer
+>     messages=[{"role": "user", "content": prompt}],  # LiteLLM 自動處理聊天模板格式
+>     api_base="http://localhost:11434",
+> )
+> answer = response.choices[0].message.content
+> ```
+>
+> | 原文手動步驟 | LiteLLM + Ollama |
+> |---|---|
+> | ① `BitsAndBytesConfig(load_in_4bit=True, ...)` | Ollama 自動處理量化 |
+> | ② `AutoModelForCausalLM.from_pretrained(...)` | Ollama 預載模型 |
+> | ③ `AutoTokenizer.from_pretrained(...)` | Ollama 內建 Tokenizer |
+> | ④ `pipeline(model=..., tokenizer=..., task="text-generation", ...)` | `litellm.completion()` |
+> | ⑤ `tokenizer.apply_chat_template(...)` | LiteLLM `messages` 參數自動處理 |
+>
+> 雖然不需要手動操作，但**理解下方 Tokenizer 的工作原理仍然重要**，因為它影響 context window 上限和 token 計費。
 
 **LLM 閱讀器的 Tokenizer 到底在做什麼？**
 
@@ -639,6 +691,26 @@ RERANKER = RAGPretrainedModel.from_pretrained("colbert-ir/colbertv2.0")
 | **拿到什麼？** | ColBERTv2 延遲交互模型的預訓練權重 |
 | **為什麼需要？** | 嵌入模型的初步檢索「大方向對但排序粗糙」，ColBERTv2 用 token 級交互重新排序，把最相關的片段排到最前面 |
 
+> [!NOTE]
+> **📌 本專案做法：CrossEncoder 取代 ColBERTv2 / RAGatouille**
+>
+> 原文使用 RAGatouille 封裝的 ColBERTv2（Late Interaction 架構）。由於 RAGatouille 不相容 langchain 1.x，本專案改用 `sentence-transformers` 的 **CrossEncoder**：
+>
+> ```python
+> from sentence_transformers import CrossEncoder
+> RERANKER = CrossEncoder("cross-encoder/ms-marco-MiniLM-L-6-v2")
+> rankings = RERANKER.rank(question, candidate_texts, top_k=5)
+> ```
+>
+> | | ColBERTv2（原文） | CrossEncoder（本專案） |
+> |---|---|---|
+> | **架構** | Late Interaction（查詢與文檔分別編碼，比對時做 token 級交互） | 查詢與文檔拼接後聯合編碼，直接輸出相關性分數 |
+> | **精度** | 高 | 高（Cross-encoder 通常是精度最高的重排方案） |
+> | **速度** | 中等 | 較慢（但只需排序少量候選片段，影響不大） |
+> | **依賴** | RAGatouille + colbert-ai | sentence-transformers（已是嵌入模型的依賴） |
+>
+> 下方 Section 四 4.3 的 ColBERTv2 原理解說仍完整保留，作為不同重排序架構的學習參考。
+
 ### 3.0.2.5 總覽：四個 HF 組件分別落在哪個階段？
 
 ```mermaid
@@ -656,8 +728,8 @@ flowchart TD
         direction LR
         Q["🧑 使用者問題"]
         B2["🧮 (2) 嵌入模型\nthenlper/gte-small\n（嵌入查詢）"]
-        B4["🔀 (4) 重排序模型\nColBERTv2"]
-        B3["🤖 (3) LLM 閱讀器\nZephyr-7B\n+ Tokenizer\n（格式化 prompt + 生成答案）"]
+        B4["🔀 (4) 重排序模型\nColBERTv2\n📌 本專案：CrossEncoder"]
+        B3["🤖 (3) LLM 閱讀器\nZephyr-7B\n+ Tokenizer\n（格式化 prompt + 生成答案）\n📌 本專案：Ollama + LiteLLM"]
         Q --> B2
         B2 -->|"查詢向量"| SEARCH["🔍 搜索 FAISS"]
         SEARCH -->|"top-30 片段"| B4
@@ -688,8 +760,8 @@ flowchart TD
 |---|---|---|
 | **FAISS** | Facebook Research（獨立開源） | 向量搜索引擎，在本地執行 |
 | **LangChain** | LangChain Inc.（獨立開源） | RAG 流水線框架，負責串接所有組件 |
-| **BitsAndBytes** | Tim Dettmers（獨立開源） | 4-bit 量化工具，降低 LLM 顯存需求 |
-| **RAGatouille** | Benjamin Clavié（獨立開源） | ColBERTv2 的易用封裝（模型權重來自 HF，但庫本身不是） |
+| **BitsAndBytes** | Tim Dettmers（獨立開源） | 4-bit 量化工具，降低 LLM 顯存需求（📌 本專案不需要，Ollama 自動處理量化） |
+| **RAGatouille** | Benjamin Clavié（獨立開源） | ColBERTv2 的易用封裝（📌 本專案改用 sentence-transformers 的 CrossEncoder，因 RAGatouille 不相容 langchain 1.x） |
 | **PaCMAP** | 學術研究（獨立開源） | 嵌入視覺化的降維工具 |
 
 ### 3.0.4 一句話總結
@@ -913,7 +985,7 @@ flowchart TD
 本文透過 **LangChain 的 FAISS 封裝** 使用，不需要直接操作底層 API：
 
 ```python
-from langchain.vectorstores import FAISS
+from langchain_community.vectorstores import FAISS  # langchain 1.x 路徑（舊版為 langchain.vectorstores）
 from langchain_community.embeddings import HuggingFaceEmbeddings
 from langchain_community.vectorstores.utils import DistanceStrategy
 
@@ -1010,6 +1082,19 @@ flowchart LR
 - **ColBERTv2**：每個 token 各自一個向量，計算 token 級別的交互（MaxSim），更精準但較慢
 - **策略**：先用 Bi-encoder 粗篩 30 篇，再用 ColBERTv2 精排保留 5 篇
 
+> [!NOTE]
+> **📌 本專案做法**
+>
+> 本專案使用 **Cross-encoder**（`cross-encoder/ms-marco-MiniLM-L-6-v2`）做重排序。Cross-encoder 是上圖中未畫出的第三種架構 — 它直接將查詢和文檔拼接後丟入同一個 Transformer 聯合編碼，輸出單一相關性分數。三種架構的比較：
+>
+> | 架構 | 編碼方式 | 精度 | 速度 | 適用場景 |
+> |------|---------|------|------|---------|
+> | **Bi-encoder** | 查詢、文檔分別編碼為單一向量 | 低 | 最快 | 大規模粗檢索（FAISS） |
+> | **Late Interaction**（ColBERTv2） | 分別編碼為多個 token 向量，比對時做 MaxSim | 中高 | 中等 | 精排序 |
+> | **Cross-encoder** | 查詢+文檔拼接後聯合編碼 | 最高 | 最慢 | 少量候選片段的精排序 |
+>
+> 本系統的策略：先用 Bi-encoder 粗篩 30 篇（速度優先），再用 Cross-encoder 精排至 5 篇（精度優先）。
+
 ---
 
 ### 4.4 LLM 閱讀器 — 最終生成答案 `← 使用 HF 組件 (3) Zephyr-7B`
@@ -1019,6 +1104,11 @@ flowchart LR
 - 模型：`HuggingFaceH4/zephyr-7b-beta`
 - **上下文長度**需足夠：5 篇 × 512 tokens = 2,560 tokens + prompt ≈ 至少需要 **4K tokens** 的上下文窗口
 - 使用 **4-bit 量化**（BitsAndBytes NF4）大幅降低顯存需求，讓 7B 模型可在單張 GPU 上運行
+
+> [!NOTE]
+> **📌 本專案做法**
+>
+> 本專案使用 **Ollama**（本地 `gpt-oss:20b`）透過 **LiteLLM** 統一呼叫。Ollama 自動處理模型載入和量化，不需要手動設定 `BitsAndBytesConfig`。切換到雲端 API（如 Gemini）只需改一個參數 `model="gemini/gemini-2.5-flash"`，其餘程式碼完全不變。
 
 #### Prompt 設計原則
 
@@ -1037,15 +1127,15 @@ flowchart LR
 sequenceDiagram
     participant U as 使用者
     participant R as 檢索器 (FAISS)
-    participant RR as 重排序器 (ColBERTv2)
+    participant RR as 重排序器 (ColBERTv2)<br>📌 本專案：CrossEncoder
     participant P as Prompt 組裝
-    participant L as LLM (Zephyr-7B)
+    participant L as LLM (Zephyr-7B)<br>📌 本專案：Ollama + LiteLLM
 
     U->>R: "How to create a pipeline?"
     R->>R: 嵌入查詢 → 向量
     R->>R: FAISS 相似性搜索 (top-30)
     R->>RR: 30 篇候選片段
-    RR->>RR: 對每篇計算 token 級交互分數
+    RR->>RR: 對每篇計算交互分數
     RR->>P: 精排後的 top-5 片段
     P->>P: 格式化：system prompt + context + question
     P->>L: 完整 prompt
@@ -1061,8 +1151,8 @@ sequenceDiagram
 | **LangChain** | RAG 框架 | 豐富的向量資料庫選項，保留文件元資料 |
 | **FAISS** | 向量搜索引擎 | Facebook 出品，快速且廣泛支援 |
 | **Sentence Transformers** (`thenlper/gte-small`) | 嵌入模型 | 輕量（384 維），max_seq_length=512 |
-| **Transformers** + **BitsAndBytes** | LLM 推理 | 4-bit 量化，降低顯存需求 |
-| **RAGatouille** + **ColBERTv2** | 重排序 | 延遲交互模型，token 級精排 |
+| **Transformers** + **BitsAndBytes** | LLM 推理 | 4-bit 量化，降低顯存需求（📌 本專案：Ollama + LiteLLM） |
+| **RAGatouille** + **ColBERTv2** | 重排序 | 延遲交互模型，token 級精排（📌 本專案：CrossEncoder） |
 | **PaCMAP** | 嵌入視覺化 | 降維效果優於 t-SNE/UMAP，速度快 |
 
 ---
@@ -1087,11 +1177,22 @@ sequenceDiagram
 ### Step 0：環境準備
 
 ```bash
+# 原文的安裝指令
 pip install torch transformers accelerate bitsandbytes \
     langchain langchain-community \
     sentence-transformers faiss-gpu \
     datasets ragatouille pacmap plotly pandas
 ```
+
+> [!NOTE]
+> **📌 本專案做法**
+>
+> 本專案使用 `uv` 管理依賴（定義在 `pyproject.toml`），主要差異：
+> - 移除 `bitsandbytes`（Ollama 自動處理量化）和 `ragatouille`（不相容 langchain 1.x）
+> - 新增 `langchain-text-splitters`（langchain 1.x 拆出的獨立套件）和 `litellm`（統一 LLM 呼叫介面）
+> ```bash
+> uv sync  # 一鍵安裝所有依賴
+> ```
 
 ### Step 1：載入知識庫 `← HF 組件 (1) 資料集`
 
@@ -1099,7 +1200,7 @@ pip install torch transformers accelerate bitsandbytes \
 
 ```python
 import datasets
-from langchain.docstore.document import Document as LangchainDocument
+from langchain_core.documents import Document as LangchainDocument  # langchain 1.x 路徑（舊版為 langchain.docstore.document）
 
 # 從 HuggingFace Hub 下載知識庫資料集（HuggingFace 官方文件集合）
 ds = datasets.load_dataset("m-ric/huggingface_doc", split="train")
@@ -1141,7 +1242,7 @@ flowchart LR
 
 ```python
 from typing import Optional, List
-from langchain.text_splitter import RecursiveCharacterTextSplitter
+from langchain_text_splitters import RecursiveCharacterTextSplitter  # langchain 1.x 路徑（舊版為 langchain.text_splitter）
 from transformers import AutoTokenizer
 
 # 嵌入模型名稱（後續切分和嵌入都會用到同一個模型）
@@ -1202,7 +1303,7 @@ print(f"切分後共 {len(docs_processed)} 個片段")
 > **從 HF 拿什麼**：`thenlper/gte-small` 嵌入模型 — 把每個文字片段轉成 384 維向量。向量存入本地的 FAISS 索引（FAISS 不來自 HF）。
 
 ```python
-from langchain.vectorstores import FAISS
+from langchain_community.vectorstores import FAISS  # langchain 1.x 路徑（舊版為 langchain.vectorstores）
 from langchain_community.embeddings import HuggingFaceEmbeddings
 from langchain_community.vectorstores.utils import DistanceStrategy
 
@@ -1325,6 +1426,33 @@ READER_LLM = pipeline(
 print("LLM 閱讀器載入完成")
 ```
 
+> [!NOTE]
+> **📌 本專案做法**
+>
+> 以上整段程式碼（BitsAndBytesConfig + AutoModelForCausalLM + AutoTokenizer + pipeline）在本專案中被一個函式取代：
+>
+> ```python
+> import litellm
+>
+> def reader_llm(prompt: str) -> str:
+>     response = litellm.completion(
+>         model="ollama/gpt-oss:20b",            # Ollama 模型（或 "gemini/gemini-2.5-flash" 等雲端模型）
+>         messages=[{"role": "user", "content": prompt}],
+>         api_base="http://localhost:11434",      # Ollama 服務位址（雲端模式不需要）
+>         temperature=0.2,
+>         max_tokens=500,
+>     )
+>     return response.choices[0].message.content
+> ```
+>
+> **被省掉的步驟**：
+> - `BitsAndBytesConfig` → Ollama 自動處理量化
+> - `AutoModelForCausalLM.from_pretrained()` → Ollama 預載模型
+> - `AutoTokenizer.from_pretrained()` → Ollama 內建 Tokenizer
+> - `pipeline()` 封裝 → `litellm.completion()` 取代
+>
+> 理解上方原文的每一步仍然有價值 — 當你需要更精細地控制模型行為（如自訂量化參數、調整 pipeline 參數）時，就需要回到手動方式。
+
 ### Step 5：定義 Prompt 模板 `← 使用 HF 組件 (3) 的 Tokenizer 格式化`
 
 > **從 HF 拿什麼**：用 Zephyr-7B 的 Tokenizer 的 `apply_chat_template()` 方法，將 prompt 自動格式化為該模型要求的聊天格式（`<|system|>...<|user|>...<|assistant|>`）。
@@ -1357,6 +1485,27 @@ RAG_PROMPT_TEMPLATE = tokenizer.apply_chat_template(
 )
 ```
 
+> [!NOTE]
+> **📌 本專案做法**
+>
+> 以上 `apply_chat_template()` 步驟在本專案中**完全不需要**。LiteLLM 的 `messages` 參數直接接受 `[{"role": "system", "content": "..."}, {"role": "user", "content": "..."}]` 格式，Ollama / 雲端 API 會自動處理聊天模板轉換。
+>
+> 本專案的 Prompt 模板是純文字字串，不需要 Tokenizer 格式化：
+>
+> ```python
+> RAG_PROMPT_TEMPLATE = """Based on the following context, answer the question.
+> Only use the provided context. If the answer cannot be found, say so.
+>
+> Context:
+> {context}
+>
+> Question: {question}
+>
+> Answer:"""
+> ```
+>
+> **被省掉的步驟**：`tokenizer.apply_chat_template()` — LiteLLM 自動將 `messages` 轉成模型要求的格式（如 `<|system|>...<|user|>...`）。你只需提供結構化的 role/content，不需要知道每個模型的聊天模板細節。
+
 ### Step 6：載入重排序模型 `← HF 組件 (4) ColBERTv2`
 
 > **從 HF 拿什麼**：`colbert-ir/colbertv2.0` 模型權重 — 透過 RAGatouille 庫下載，用於對初步檢索結果做 token 級精排序。
@@ -1369,6 +1518,14 @@ from ragatouille import RAGPretrainedModel
 RERANKER = RAGPretrainedModel.from_pretrained("colbert-ir/colbertv2.0")
 print("重排序模型載入完成")
 ```
+
+> [!NOTE]
+> **📌 本專案做法**
+>
+> ```python
+> from sentence_transformers import CrossEncoder
+> RERANKER = CrossEncoder("cross-encoder/ms-marco-MiniLM-L-6-v2")
+> ```
 
 ### Step 7：組裝完整 RAG 流水線 `← 串接所有 HF 組件`
 
@@ -1412,6 +1569,15 @@ def answer_with_rag(
     return answer, relevant_docs  # 回傳答案和參考的片段（供後續檢視來源）
 ```
 
+> [!NOTE]
+> **📌 本專案做法的主要差異**
+>
+> | 步驟 | 原文 | 本專案 |
+> |------|------|--------|
+> | 重排序 API | `reranker.rerank(question, docs, k=5)` → 取 `doc["content"]` | `reranker.rank(question, docs, top_k=5)` → 取 `docs[r["corpus_id"]]` |
+> | LLM 呼叫 | `llm(prompt)[0]["generated_text"]`（pipeline 回傳格式） | `llm(prompt)`（直接回傳字串，LiteLLM 內部處理） |
+> | 型別標註 | `llm: pipeline`, `reranker: RAGPretrainedModel` | `llm: Callable`, `reranker: CrossEncoder` |
+
 ### Step 8：執行查詢
 
 ```python
@@ -1437,6 +1603,6 @@ for i, doc in enumerate(relevant_docs):
 
 1. **切分是地基** — 用 token 數而非字元數控制大小，確保不超過嵌入模型的 `max_seq_length`
 2. **餘弦相似度 + 歸一化** — 最穩健的預設組合
-3. **粗檢索 + 精排序** — 先用 Bi-encoder 撈 30 篇，再用 ColBERTv2 精排至 5 篇，品質大幅提升
+3. **粗檢索 + 精排序** — 先用 Bi-encoder 撈 30 篇，再用精排模型（原文：ColBERTv2 / 本專案：CrossEncoder）精排至 5 篇，品質大幅提升
 4. **Prompt 設計四原則** — 限定範圍、要求簡潔、引用來源、允許拒答
 5. **迭代優化** — 先建評估集，再逐步調整，每次只改一個變數

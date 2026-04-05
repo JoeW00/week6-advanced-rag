@@ -68,7 +68,7 @@ flowchart TD
     end
 
     B2 -->|"查詢向量"| DB
-    DB -->|"top-30 候選片段"| B3["🔀 ColBERTv2\n重排序 → top-5"]
+    DB -->|"top-30 候選片段"| B3["🔀 CrossEncoder\n重排序 → top-5"]
     B3 --> B4["📝 組裝 Prompt"]
     B4 --> B5["🤖 LLM\nOllama 或 LiteLLM（雲端）"]
     B5 --> B6["✅ 最終回答"]
@@ -86,7 +86,7 @@ flowchart TD
     HF --> DS["📦 知識庫資料集\nm-ric/huggingface_doc"]
     HF --> EM["🧮 嵌入模型 + Tokenizer\nthenlper/gte-small"]
     OLLAMA["🖥️ 本地 Ollama\ngpt-oss:20b"]
-    HF --> RR["🔀 重排序模型\ncolbert-ir/colbertv2.0"]
+    HF --> RR["🔀 重排序模型\ncross-encoder/ms-marco-MiniLM-L-6-v2"]
 
     LOCAL_DATA["📁 本地資安資料集\ndata/*.md, data/*.csv"]
 
@@ -122,22 +122,25 @@ flowchart TD
 
 ### 4.1 Python 套件清單
 
-| 套件 | 用途 | 安裝指令 |
-|---|---|---|
-| `torch` | PyTorch 深度學習框架 | `pip install torch` |
-| `transformers` | HuggingFace 模型載入與推理 | `pip install transformers` |
-| `accelerate` | 模型載入加速（嵌入模型用） | `pip install accelerate` |
-| `ollama`（系統服務） | 本地 LLM 推理引擎 | 需預先安裝 Ollama 並執行 `ollama pull gpt-oss:20b` |
-| `langchain` | RAG 流水線框架 | `pip install langchain` |
-| `langchain-community` | LangChain 社群整合（FAISS、HF Embeddings） | `pip install langchain-community` |
-| `sentence-transformers` | 句子嵌入模型封裝 | `pip install sentence-transformers` |
-| `faiss-gpu` / `faiss-cpu` | 向量相似性搜索引擎 | `pip install faiss-gpu` 或 `faiss-cpu` |
-| `datasets` | HuggingFace 資料集載入 | `pip install datasets` |
-| `ragatouille` | ColBERTv2 重排序封裝 | `pip install ragatouille` |
-| `litellm` | 統一雲端 LLM API 介面 | `pip install litellm` |
-| `pacmap` | 嵌入視覺化降維 | `pip install pacmap` |
-| `plotly` | 互動式圖表 | `pip install plotly` |
-| `pandas` | 資料處理（載入 CSV） | `pip install pandas` |
+所有套件統一定義在 `pyproject.toml`，透過 `uv sync` 一次安裝至 `.venv` 虛擬環境。
+
+| 套件 | 用途 |
+|---|---|
+| `torch` | PyTorch 深度學習框架 |
+| `transformers` | HuggingFace 模型載入與推理 |
+| `accelerate` | 模型載入加速（嵌入模型用） |
+| `langchain` | RAG 流水線框架（1.x 版） |
+| `langchain-community` | LangChain 社群整合（FAISS、HF Embeddings） |
+| `langchain-text-splitters` | 文檔切分器（langchain 1.x 拆出的獨立套件） |
+| `sentence-transformers` | 句子嵌入模型封裝 + CrossEncoder 重排序 |
+| `faiss-cpu` | 向量相似性搜索引擎 |
+| `datasets` | HuggingFace 資料集載入 |
+| `litellm` | 統一 LLM API 介面（支援本地 Ollama + 雲端 API） |
+| `pacmap` | 嵌入視覺化降維 |
+| `plotly` | 互動式圖表 |
+| `pandas` | 資料處理（載入 CSV） |
+| `ipykernel` | Jupyter Notebook 核心（讓 `.venv` 可作為 Notebook kernel） |
+| `ollama`（系統服務） | 本地 LLM 推理引擎（需另外安裝，執行 `ollama pull gpt-oss:20b`） |
 
 ### 4.2 核心模型組件
 
@@ -148,16 +151,15 @@ flowchart TD
 | 1 | 知識庫資料集 | HuggingFace Hub | `m-ric/huggingface_doc` | RAG 的外部知識來源 | 階段 A |
 | 2 | 嵌入模型 + Tokenizer | HuggingFace Hub | `thenlper/gte-small` | 文字 → 384 維向量；切分時計算 token 數 | 階段 A + B |
 | 3 | LLM 閱讀器 | **本地 Ollama** | `gpt-oss:20b` | 閱讀上下文並生成答案（透過 LiteLLM 呼叫） | 階段 B |
-| 4 | 重排序模型 | HuggingFace Hub | `colbert-ir/colbertv2.0` | 對候選片段做 token 級精排 | 階段 B |
+| 4 | 重排序模型 | HuggingFace Hub | `cross-encoder/ms-marco-MiniLM-L-6-v2` | Cross-Encoder 對候選片段做精排 | 階段 B |
 
 ### 4.3 非 HuggingFace 工具
 
 | 工具 | 來源 | 角色 |
 |---|---|---|
 | **FAISS** | Meta AI Research | 向量搜索引擎 |
-| **LangChain** | LangChain Inc. | RAG 流水線框架 |
+| **LangChain** | LangChain Inc. | RAG 流水線框架（1.x 版） |
 | **Ollama** | Ollama Inc. | 本地 LLM 推理引擎（封裝 Tokenizer + 模型推理） |
-| **RAGatouille** | Benjamin Clavié | ColBERTv2 易用封裝 |
 | **LiteLLM** | BerriAI | 統一 LLM 呼叫介面（同時支援本地 Ollama 與雲端 API） |
 | **PaCMAP** | 學術研究 | 嵌入視覺化降維 |
 
@@ -268,24 +270,38 @@ flowchart TD
 
 | 項目 | 說明 |
 |---|---|
-| **功能** | 安裝所有相依套件 |
+| **功能** | 驗證所有相依套件已安裝 |
 | **輸入** | 無 |
-| **輸出** | 套件安裝完成 |
-| **關鍵指令** | `pip install torch transformers accelerate langchain langchain-community sentence-transformers faiss-gpu datasets ragatouille litellm pacmap plotly pandas` |
+| **輸出** | 各套件載入成功確認 |
+| **套件管理** | 透過 `uv sync` 安裝（定義在 `pyproject.toml`） |
+
+**前置步驟**（在終端機執行，非 Notebook 內）：
+
+```bash
+# 1. 安裝所有 Python 套件
+uv sync
+
+# 2. 安裝 Ollama（本地 LLM 推理引擎）
+#    下載：https://ollama.com/download
+#    拉取模型：ollama pull gpt-oss:20b
+#    確認服務已啟動（預設 http://localhost:11434）
+```
 
 ```python
-# Cell 0：安裝相依套件
-!pip install torch transformers accelerate \
-    langchain langchain-community \
-    sentence-transformers faiss-gpu \
-    datasets ragatouille \
-    litellm \
-    pacmap plotly pandas
+# Cell 0：驗證環境
+import importlib
 
-# 另外需要安裝 Ollama（本地 LLM 推理引擎）：
-# 1. 安裝 Ollama：https://ollama.com/download
-# 2. 拉取模型：ollama pull gpt-oss:20b
-# 3. 確認 Ollama 服務已啟動（預設 http://localhost:11434）
+required = [
+    "torch", "transformers", "accelerate", "langchain", "langchain_community",
+    "sentence_transformers", "faiss", "datasets", "ragatouille", "litellm",
+    "pacmap", "plotly", "pandas",
+]
+
+for pkg in required:
+    importlib.import_module(pkg)
+    print(f"  ✓ {pkg}")
+
+print("\n所有套件載入成功！")
 ```
 
 ---
@@ -356,7 +372,7 @@ NUM_DOCS_FINAL     = 5   # 精排後保留數量
 # Cell 2：載入知識庫
 import datasets
 import pandas as pd
-from langchain.docstore.document import Document as LangchainDocument
+from langchain_core.documents import Document as LangchainDocument
 
 if not USE_LOCAL_DATA:
     # ===== 方式 A：從 HuggingFace Hub 載入 =====
@@ -432,7 +448,7 @@ for doc in RAW_KNOWLEDGE_BASE[:2]:
 
 ```python
 # Cell 3：文檔切分
-from langchain.text_splitter import RecursiveCharacterTextSplitter
+from langchain_text_splitters import RecursiveCharacterTextSplitter
 from transformers import AutoTokenizer
 
 # 建立切分器：使用嵌入模型的 Tokenizer 以 token 數計算片段長度
@@ -655,18 +671,21 @@ RAG_PROMPT_TEMPLATE = RAG_PROMPT_TEMPLATE_ZH if USE_LOCAL_DATA else RAG_PROMPT_T
 
 | 項目 | 說明 |
 |---|---|
-| **功能** | 載入 ColBERTv2 延遲交互模型 |
+| **功能** | 載入 Cross-Encoder 重排序模型 |
 | **輸入** | 無 |
-| **輸出** | `RERANKER: RAGPretrainedModel` |
-| **HF 組件** | `colbert-ir/colbertv2.0` |
+| **輸出** | `RERANKER: CrossEncoder` |
+| **HF 組件** | `cross-encoder/ms-marco-MiniLM-L-6-v2` |
+
+> **設計說明**：Cross-Encoder 將查詢和文檔拼接後聯合編碼，直接輸出相關性分數。相較 Bi-Encoder（如嵌入模型），精度更高但速度較慢，適合對少量候選片段做精排。
 
 ```python
 # Cell 7：載入重排序模型
-from ragatouille import RAGPretrainedModel
-RERANKER = RAGPretrainedModel.from_pretrained("colbert-ir/colbertv2.0")
+from sentence_transformers import CrossEncoder
+
+RERANKER = CrossEncoder("cross-encoder/ms-marco-MiniLM-L-6-v2")
 ```
 
-**驗證**：用一個簡單查詢和 5 個文字片段測試 `RERANKER.rerank()` 是否正常回傳排序結果。
+**驗證**：用一個簡單查詢和幾個文字片段測試 `RERANKER.rank()` 是否正常回傳排序結果。
 
 ---
 
@@ -693,10 +712,10 @@ def answer_with_rag(
     relevant_docs = knowledge_index.similarity_search(query=question, k=num_retrieved_docs)
     relevant_texts = [doc.page_content for doc in relevant_docs]
 
-    # 2. ColBERTv2 精排序 → top-5
+    # 2. CrossEncoder 精排序 → top-5
     if reranker:
-        reranked = reranker.rerank(question, relevant_texts, k=num_docs_final)
-        relevant_texts = [doc["content"] for doc in reranked]
+        rankings = reranker.rank(question, relevant_texts, top_k=num_docs_final)
+        relevant_texts = [relevant_texts[r["corpus_id"]] for r in rankings]
     else:
         relevant_texts = relevant_texts[:num_docs_final]
 
@@ -749,7 +768,7 @@ sequenceDiagram
     participant U as 使用者
     participant EMB as 嵌入模型<br>(gte-small)
     participant FAISS as FAISS<br>向量資料庫
-    participant RR as 重排序器<br>(ColBERTv2)
+    participant RR as 重排序器<br>(CrossEncoder)
     participant P as Prompt 組裝
     participant LLM as LLM 閱讀器<br>(Ollama / LiteLLM 雲端)
 
@@ -758,7 +777,7 @@ sequenceDiagram
     EMB->>FAISS: 查詢向量
     FAISS->>FAISS: 比對所有片段向量<br>回傳 top-30 索引位置
     FAISS->>RR: 30 篇候選片段（原始文字）
-    RR->>RR: token 級交互計算（MaxSim）
+    RR->>RR: 查詢+文檔聯合編碼<br>輸出相關性分數
     RR->>P: 精排後 top-5 片段
     P->>P: 填入模板<br>system prompt + context + question
     P->>LLM: 完整 Prompt
@@ -824,7 +843,7 @@ sequenceDiagram
 | **Cell 4** | `index.ntotal == len(docs_processed)` + 測試搜索 | 向量數量正確，搜索回傳相關結果 |
 | **Cell 4.5** | 觀察散點圖 | 同來源片段聚簇，查詢落在相關片段附近 |
 | **Cell 5** | 簡單 prompt 測試 | LLM 回傳合理文字（確認 Ollama / 雲端連線正常） |
-| **Cell 7** | 測試 `reranker.rerank()` | 回傳排序結果，最相關的排在前面 |
+| **Cell 7** | 測試 `RERANKER.rank()` | 回傳排序結果，最相關的排在前面 |
 | **Cell 8+9** | 完整 RAG 查詢 | 答案引用正確的來源片段，內容相關且準確 |
 
 ### 9.2 端到端驗證問題
@@ -844,7 +863,7 @@ sequenceDiagram
 | CUDA out of memory | 嵌入模型 GPU 記憶體不足 | 嵌入模型改用 `"cpu"`（LLM 走 Ollama 不受影響） |
 | 搜索結果不相關 | 知識庫太小或切分不當 | 檢查片段內容，調整 chunk_size |
 | LLM 不遵守指令 | Prompt 格式或模型能力問題 | 調整 Prompt 模板或嘗試更強的模型 |
-| Reranker 報錯 | RAGatouille 版本不相容 | 檢查版本，嘗試 `pip install --upgrade ragatouille` |
+| Reranker 報錯 | CrossEncoder 模型下載失敗 | 確認網路連線，或手動下載 `cross-encoder/ms-marco-MiniLM-L-6-v2` |
 | LiteLLM API 錯誤（雲端） | API Key 未設定 | 設定環境變數 `GEMINI_API_KEY` 等 |
 | Ollama 連線失敗 | Ollama 服務未啟動 | 執行 `ollama serve` 或確認 `http://localhost:11434` 可連線 |
 | Ollama 模型未找到 | 模型未下載 | 執行 `ollama pull gpt-oss:20b` |
@@ -864,7 +883,7 @@ sequenceDiagram
 | LiteLLM 官方文件 | https://docs.litellm.ai/ |
 | Sentence Transformers | https://www.sbert.net/ |
 | MTEB Leaderboard（嵌入模型排行榜） | https://huggingface.co/spaces/mteb/leaderboard |
-| ColBERTv2 論文 | https://arxiv.org/abs/2112.01488 |
+| Sentence Transformers CrossEncoder | https://www.sbert.net/docs/cross_encoder/usage/usage.html |
 
 ### 10.2 名詞對照表
 
@@ -879,7 +898,7 @@ sequenceDiagram
 | Cosine Similarity | 餘弦相似度 | 兩向量夾角的 cos 值 |
 | Normalization | 歸一化 | 將向量長度縮放到 1 |
 | Reranking | 重排序 | 對檢索結果做精排 |
-| Late Interaction | 延遲交互 | ColBERTv2 的架構類型 |
+| Cross-Encoder Reranking | 交叉編碼重排序 | 本系統使用的重排序方式，將查詢與文檔聯合編碼後輸出相關性分數 |
 | Quantization | 量化 | 降低模型精度以節省記憶體 |
 | Bi-encoder | 雙編碼器 | 對查詢和文檔分別編碼 |
 | Cross-encoder | 交叉編碼器 | 對查詢和文檔聯合編碼 |
