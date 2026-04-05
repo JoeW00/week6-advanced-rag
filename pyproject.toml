@@ -19,4 +19,6 @@ dependencies = [
     "plotly",
     "pandas",
     "ipykernel",
+    "ipywidgets>=8.1.8",
+    "langchain-huggingface>=1.2.1",
 ]
